@@ -22,29 +22,10 @@ type Server struct {
 	closeHandlers                        []CloseHandler
 }
 
-type ConnectHandler interface {
-	HandleConnect(c *Conn, host string) (newHost string, err error)
-}
-
-type FuncConnectHandler func(c *Conn, host string) (newHost string, err error)
-
-func (f FuncConnectHandler) HandleConnect(c *Conn, host string) (newHost string, err error) {
-	return f(c, host)
-}
-
-type CloseHandler interface {
-	HandleClose(c *Conn)
-}
-
-type FuncCloseHandler func(c *Conn)
-
-func (f FuncCloseHandler) HandleClose(c *Conn) {
-	f(c)
-}
-
 type Conn struct {
 	server *Server
 	rwc    net.Conn
+	Data   interface{}
 }
 
 func New() *Server {
@@ -111,6 +92,10 @@ func (srv *Server) newConn(c net.Conn) (*Conn, error) {
 		rwc:    c,
 	}
 	return conn, nil
+}
+
+func (c *Conn) RemoteAddr() string {
+	return c.rwc.RemoteAddr().String()
 }
 
 func (c *Conn) handshakeNoAuth() error {

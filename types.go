@@ -194,3 +194,23 @@ func (c *cmd) ReadFrom(r io.Reader) (n int64, err error) {
 	n += 2
 	return
 }
+
+type ConnectHandler interface {
+	HandleConnect(c *Conn, host string) (newHost string, err error)
+}
+
+type FuncConnectHandler func(c *Conn, host string) (newHost string, err error)
+
+func (f FuncConnectHandler) HandleConnect(c *Conn, host string) (newHost string, err error) {
+	return f(c, host)
+}
+
+type CloseHandler interface {
+	HandleClose(c *Conn)
+}
+
+type FuncCloseHandler func(c *Conn)
+
+func (f FuncCloseHandler) HandleClose(c *Conn) {
+	f(c)
+}
