@@ -40,9 +40,9 @@ const (
 )
 
 var (
-	ErrAuthenticationFailed          = errors.New("socks5: authentication failed")
-	ErrConnectionNotAllowedByRuleset = errors.New("socks5: connection not allowed by ruleset")
-	ErrAddressTypeNotSupported       = errors.New("socks5: address type not supported")
+	ErrAuthenticationFailed          = errors.New("authentication failed")
+	ErrConnectionNotAllowedByRuleset = errors.New("connection not allowed by ruleset")
+	ErrAddressTypeNotSupported       = errors.New("address type not supported")
 )
 
 type header struct {
