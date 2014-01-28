@@ -2,7 +2,6 @@ package socks5
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"io"
 	"log"
@@ -96,6 +95,10 @@ func (srv *Server) newConn(c net.Conn) (*Conn, error) {
 
 func (c *Conn) RemoteAddr() string {
 	return c.rwc.RemoteAddr().String()
+}
+
+func (c *Conn) LocalAddr() string {
+	return c.rwc.LocalAddr().String()
 }
 
 func (c *Conn) handshakeNoAuth() error {
@@ -197,17 +200,13 @@ func (c *Conn) commandConnect(cmd *cmd) error {
 
 	defer conn.Close()
 
-	host, port, err := net.SplitHostPort(conn.LocalAddr().String())
-	if err != nil {
-		writeCommandErrorReply(c.rwc, repGeneralSocksServerFailure)
-		return err
+	r := &cmdResp{
+		ver: verSocks5,
+		rep: repSucceeded,
+		rsv: rsvReserved,
 	}
 
-	_, err = c.rwc.Write([]byte{
-		verSocks5,
-		repSucceeded,
-		rsvReserved,
-	})
+	host, port, err := net.SplitHostPort(conn.LocalAddr().String())
 	if err != nil {
 		writeCommandErrorReply(c.rwc, repGeneralSocksServerFailure)
 		return err
@@ -215,31 +214,11 @@ func (c *Conn) commandConnect(cmd *cmd) error {
 
 	ip := net.ParseIP(host)
 	if ipv4 := ip.To4(); ipv4 != nil {
-		_, err = c.rwc.Write([]byte{
-			atypIPv4Address,
-		})
-		if err != nil {
-			writeCommandErrorReply(c.rwc, repGeneralSocksServerFailure)
-			return err
-		}
-		_, err = c.rwc.Write(ipv4[:net.IPv4len])
-		if err != nil {
-			writeCommandErrorReply(c.rwc, repGeneralSocksServerFailure)
-			return err
-		}
+		r.atyp = atypIPv4Address
+		r.bnd_addr = ipv4[:net.IPv4len]
 	} else {
-		_, err = c.rwc.Write([]byte{
-			atypIPv6Address,
-		})
-		if err != nil {
-			writeCommandErrorReply(c.rwc, repGeneralSocksServerFailure)
-			return err
-		}
-		_, err = c.rwc.Write(ip[:net.IPv6len])
-		if err != nil {
-			writeCommandErrorReply(c.rwc, repGeneralSocksServerFailure)
-			return err
-		}
+		r.atyp = atypIPv6Address
+		r.bnd_addr = ip[:net.IPv6len]
 	}
 
 	prt, err := strconv.Atoi(port)
@@ -247,8 +226,12 @@ func (c *Conn) commandConnect(cmd *cmd) error {
 		writeCommandErrorReply(c.rwc, repGeneralSocksServerFailure)
 		return err
 	}
+	r.bnd_port = uint16(prt)
 
-	binary.Write(c.rwc, binary.BigEndian, uint16(prt))
+	if _, err = r.WriteTo(c.rwc); err != nil {
+		writeCommandErrorReply(c.rwc, repGeneralSocksServerFailure)
+		return err
+	}
 
 	var wg sync.WaitGroup
 	var err2 error
@@ -263,16 +246,16 @@ func (c *Conn) commandConnect(cmd *cmd) error {
 	}()
 	wg.Wait()
 
-	if err == nil && err2 == nil {
-		return nil
+	if err != nil && err2 != nil {
+		return errors.New("socks5: " + err.Error() + " / " + err2.Error())
 	}
-	if err == nil {
+	if err != nil {
+		return err
+	}
+	if err2 != nil {
 		return err2
 	}
-	if err2 == nil {
-		return err2
-	}
-	return errors.New("socks5: " + err.Error() + " / " + err2.Error())
+	return nil
 }
 
 func (c *Conn) command() error {

@@ -57,7 +57,7 @@ func (h *header) ReadFrom(r io.Reader) (n int64, err error) {
 	n++
 
 	if h.ver != verSocks5 {
-		err = errors.New("socks5: head.ReadFrom: unsupported protocol version")
+		err = errors.New("head.ReadFrom: unsupported protocol version")
 		return
 	}
 
@@ -88,7 +88,7 @@ func (up *userpass) ReadFrom(r io.Reader) (n int64, err error) {
 	n++
 
 	if up.ver != authUsernamePasswordVersion {
-		err = errors.New("socks5: userpass.ReadFrom: unsupported USERNAME/PASSWORD authentication protocol version")
+		err = errors.New("userpass.ReadFrom: unsupported USERNAME/PASSWORD authentication protocol version")
 		return
 	}
 
@@ -148,7 +148,7 @@ func (c *cmd) ReadFrom(r io.Reader) (n int64, err error) {
 	n++
 
 	if c.ver != verSocks5 {
-		err = errors.New("socks5: cmd.ReadFrom: unsupported protocol version")
+		err = errors.New("cmd.ReadFrom: unsupported protocol version")
 		return
 	}
 
@@ -192,6 +192,51 @@ func (c *cmd) ReadFrom(r io.Reader) (n int64, err error) {
 		return
 	}
 	n += 2
+	return
+}
+
+type cmdResp struct {
+	ver      byte
+	rep      byte
+	rsv      byte
+	atyp     byte
+	bnd_addr []byte
+	bnd_port uint16
+}
+
+func (c *cmdResp) WriteTo(w io.Writer) (n int64, err error) {
+	if c.ver != verSocks5 {
+		err = errors.New("cmdResp.WriteTo: unsupported protocol version")
+		return
+	}
+	buf := make([]byte, 0, net.IPv6len+8)
+	buf = append(buf, c.ver, c.rep, c.rsv, c.atyp)
+	switch c.atyp {
+	case atypIPv4Address:
+		if len(c.bnd_addr) < net.IPv4len {
+			err = errors.New("cmdResp.bnd_addr too short")
+			return
+		}
+		buf = append(buf, c.bnd_addr[:net.IPv4len]...)
+	case atypDomainName:
+		if len(c.bnd_addr) > 255 {
+			err = errors.New("cmdResp.bnd_addr too large")
+			return
+		}
+		buf = append(buf, byte(len(c.bnd_addr)))
+		buf = append(buf, c.bnd_addr...)
+	case atypIPv6Address:
+		if len(c.bnd_addr) < net.IPv6len {
+			err = errors.New("cmdResp.bnd_addr too short")
+			return
+		}
+		buf = append(buf, c.bnd_addr[:net.IPv6len]...)
+	}
+	buf = append(buf, 0, 0)
+	binary.BigEndian.PutUint16(buf[len(buf)-2:], c.bnd_port)
+	var i int
+	i, err = w.Write(buf)
+	n = int64(i)
 	return
 }
 
