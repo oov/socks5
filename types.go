@@ -134,7 +134,7 @@ func (c *cmd) DestAddress() string {
 	case atypDomainName:
 		host = string(c.dst_addr)
 	case atypIPv6Address:
-		host = net.IP(c.dst_addr).String()
+		return "[" + net.IP(c.dst_addr).String() + "]:" + strconv.Itoa(int(c.dst_port))
 	default:
 		host = "<unsupported address type>"
 	}
